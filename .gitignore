@@ -1,0 +1,17 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+
+core/vendor/
+core/node_modules/
+core/storage/*.key
+core/storage/app/public/
+core/storage/framework/cache/
+core/storage/framework/sessions/
+core/storage/framework/testing/
+core/storage/framework/views/
+core/storage/logs/
+
+install/database.sql
+*.log
