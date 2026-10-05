@@ -1,0 +1,50 @@
+name: Deploy FirstGetway
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+concurrency:
+  group: firstgetway-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Package deployable application files
+        run: tar --exclude='core/vendor' --exclude='core/storage' --exclude='core/.env' --exclude='core/bootstrap/cache' -czf /tmp/firstgetway-release.tgz core assets install
+
+      - name: Upload release package
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          source: /tmp/firstgetway-release.tgz
+          target: /tmp
+
+      - name: Deploy application files
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -e
+            APP=/var/www/firstgetway/data/www/firstgetway.com
+            test -d "$APP/core"
+            test -d "$APP/assets"
+            cd "$APP"
+            sudo -n tar -xzf /tmp/firstgetway-release.tgz -C "$APP"
+            sudo -n chown -R firstgetway:firstgetway "$APP/core" "$APP/assets" "$APP/install"
+            sudo -n -u firstgetway composer install --no-dev --no-interaction --prefer-dist --working-dir="$APP/core"
+            sudo -n -u firstgetway php core/artisan optimize:clear
+            sudo -n chown -R firstgetway:firstgetway core/storage core/bootstrap/cache
+            sudo -n -u firstgetway php core/artisan view:cache
+            curl -fsS --max-time 20 https://firstgetway.com/ >/dev/null
+            echo "FirstGetway deployment verified"
