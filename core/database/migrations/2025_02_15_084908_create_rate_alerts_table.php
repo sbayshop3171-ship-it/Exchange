@@ -11,6 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // The installer SQL dump already includes this legacy table. Keep the
+        // migration safe for both fresh migration-only databases and installs
+        // initialized from that baseline dump.
+        if (Schema::hasTable('rate_alerts')) {
+            return;
+        }
+
         Schema::create('rate_alerts', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('from_currency_id');
