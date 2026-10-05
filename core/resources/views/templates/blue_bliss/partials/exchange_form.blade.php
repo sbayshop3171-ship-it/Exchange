@@ -406,7 +406,12 @@
                 }
             });
 
-            $('.payment-gateway-option').on('click', function() {
+            // The gateway list is replaced after the popup opens via AJAX. Bind this
+            // handler to a stable ancestor so both initial and dynamically-rendered
+            // gateway buttons remain usable on every theme/layout.
+            $(document).off('click.paymentGateway', '#paymentModal .payment-gateway-option')
+                .on('click.paymentGateway', '#paymentModal .payment-gateway-option', function(e) {
+                e.preventDefault();
                 const gatewayId = $(this).data('gateway-id');
                 const gatewayName = $(this).data('gateway-name');
                 const wallet = $(this).data('wallet');
