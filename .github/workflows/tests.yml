@@ -41,7 +41,7 @@ jobs:
           coverage: none
       - run: composer install --no-interaction --prefer-dist --no-progress
       - run: cp .env.example .env
-      - name: Load application database schema and fixtures
-        run: mysql --host=127.0.0.1 --port=3306 --user=root --password=root changalab < ../install/database.sql
+      - name: Run application database migrations
+        run: php artisan migrate --force
       - run: php artisan key:generate
       - run: php artisan test
