@@ -185,13 +185,12 @@
                             <div class="form-group">
                                 <label class="form-label">
                                     @lang('Your')
-                                    {{ __(@$exchange->receivedCurrency->name) }}
-                                    @lang('Wallet Number/ID')
+                                    @lang('USDT Wallet Number/ID')
                                 </label>
                                 <input type="text" class="form-control form--control" name="wallet_id" required>
                             </div>
                             <x-viser-form identifier="id" identifierValue="{{ @$exchange->receivedCurrency->userDetailsData->id }}" />
-                            <button class="btn btn--base w-100 confirmationBtn" type="submit" @disabled($expired)>
+                            <button class="btn btn--base w-100" type="submit" @disabled($expired)>
                                 @lang('Confirm Exchange')
                             </button>
                         </form>
