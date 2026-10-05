@@ -19,12 +19,12 @@ class FrontendController extends Controller
     public function templates()
     {
         $pageTitle = 'Templates';
-        $temPaths = array_filter(glob('core/resources/views/templates/*'), 'is_dir');
+        $temPaths = array_filter(glob(resource_path('views/templates/*')) ?: [], 'is_dir');
+        $templates = [];
         foreach ($temPaths as $key => $temp) {
-            $arr = explode('/', $temp);
-            $tempname = end($arr);
+            $tempname = basename($temp);
             $templates[$key]['name'] = $tempname;
-            $templates[$key]['image'] = asset($temp) . '/preview.jpg';
+            $templates[$key]['image'] = asset('assets/templates/' . $tempname . '/preview.jpg');
         }
         $extraTemplates = json_decode(getTemplates(), true);
         return view('admin.frontend.templates', compact('pageTitle', 'templates', 'extraTemplates'));
