@@ -34,7 +34,7 @@ class ExchangeController extends Controller {
             return to_route('user.login');
         }
 
-        if (!auth()->user()->is_exchange_unlocked) {
+        if (!auth()->user()->hasExchangeAccess()) {
             return back()->withInput();
         }
 
@@ -78,6 +78,10 @@ class ExchangeController extends Controller {
 
         $exchange = Exchange::where('exchange_id', session()->get('EXCHANGE_TRACK'))->firstOrFail();
 
+        $request->validate([
+            'wallet_id' => 'required|string|max:255',
+        ]);
+
         if ($request->boolean('demo_payment')) {
             $request->validate(['billing_email'=>'required|email|max:190','cardholder_name'=>'required|string|max:190','card_last4'=>'nullable|digits:4']);
             // Keep the same shape as the existing dynamic form data so the admin
@@ -86,9 +90,10 @@ class ExchangeController extends Controller {
                 ['name'=>'Billing email', 'type'=>'text', 'value'=>$request->billing_email],
                 ['name'=>'Cardholder name', 'type'=>'text', 'value'=>$request->cardholder_name],
                 ['name'=>'Card last four digits', 'type'=>'text', 'value'=>$request->card_last4],
+                ['name'=>'USDT Wallet Number/ID', 'type'=>'text', 'value'=>$request->wallet_id],
                 ['name'=>'Payment method', 'type'=>'text', 'value'=>'Demo card (not charged)'],
             ];
-            $exchange->wallet_id = null;
+            $exchange->wallet_id = $request->wallet_id;
             $exchange->transaction_proof_data = [['name'=>'Request type', 'type'=>'text', 'value'=>'Demo amount request']];
             $exchange->status = Status::EXCHANGE_PENDING;
             $exchange->save();
@@ -115,7 +120,7 @@ class ExchangeController extends Controller {
 
         $userData            = $formProcessor->processFormData($request, $userRequiredData);
         $exchange->user_data = $userData ?? null;
-        $exchange->wallet_id = null;
+        $exchange->wallet_id = $request->wallet_id;
         $exchange->save();
 
         //=====automatic payment

@@ -50,6 +50,12 @@ return Application::configure(basePath: dirname(__DIR__))
         }
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // This application names the customer login route "user.login".
+        // Use it for unauthenticated web requests so protected actions (such
+        // as starting an exchange) redirect cleanly instead of throwing
+        // Route [login] not defined.
+        $middleware->redirectGuestsTo(fn () => route('user.login'));
+
         $middleware->group('web',[
             \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
             \Illuminate\Session\Middleware\StartSession::class,

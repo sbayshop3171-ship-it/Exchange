@@ -65,7 +65,7 @@
         <div class="col-xl-5">
             <div class="card b-radius--10">
                 <div class="card-header">
-                    <h5 class="mb-0">@lang('Pending Verification Requests')</h5>
+                    <h5 class="mb-0">@lang('Payment Verification Requests')</h5>
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive--sm table-responsive">
@@ -85,7 +85,7 @@
                                         <span class="fw-bold">{{ __(@$request->user->fullname) }}</span><br>
                                         <small>@ {{ __(@$request->user->username) }}</small>
                                     </td>
-                                    <td>{{ __($request->method) }}<br><small>{{ __(@$request->gateway->name) }}</small></td>
+                                    <td>{{ __($request->method) }}<br><small>{{ __(@$request->gateway->name) }}</small>@if($request->subscription_duration_days)<br><small class="text--primary">{{ __($request->subscriptionPlan->name ?? 'Subscription Plan') }} · {{ $request->subscription_duration_days }} @lang('days')</small>@endif</td>
                                     <td>
                                         @if($request->status === 'pending')
                                             <span class="badge badge--warning">Pending</span>
@@ -96,20 +96,57 @@
                                         @endif
                                     </td>
                                     <td>
-                                        @if($request->status === 'pending')
-                                            <div class="button--group">
-                                                <button type="button" class="btn btn-sm btn-outline--success confirmationBtn" data-question="@lang('Approve this verification request?')" data-action="{{ route('admin.payment.popup.approve', $request->id) }}">
-                                                    <i class="las la-check"></i>
-                                                </button>
-                                                <button type="button" class="btn btn-sm btn-outline--danger confirmationBtn" data-question="@lang('Reject this verification request?')" data-action="{{ route('admin.payment.popup.reject', $request->id) }}">
-                                                    <i class="las la-times"></i>
-                                                </button>
-                                            </div>
-                                        @else
-                                            <span class="text-muted">-</span>
-                                        @endif
+                                        <div class="button--group">
+                                            <button type="button" class="btn btn-sm btn-outline--primary" data-bs-toggle="modal" data-bs-target="#verificationViewModal{{ $request->id }}" title="@lang('View submitted details')">
+                                                <i class="las la-eye"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline--success confirmationBtn" data-question="@lang('Approve this verification request again?')" data-action="{{ route('admin.payment.popup.approve', $request->id) }}" title="@lang('Approve / re-approve')">
+                                                <i class="las la-check"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline--danger confirmationBtn" data-question="@lang('Reject this verification request again?')" data-action="{{ route('admin.payment.popup.reject', $request->id) }}" title="@lang('Reject / re-reject')">
+                                                <i class="las la-times"></i>
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
+                                <div class="modal fade" id="verificationViewModal{{ $request->id }}" tabindex="-1" aria-labelledby="verificationViewLabel{{ $request->id }}" aria-hidden="true">
+                                    <div class="modal-dialog modal-lg modal-dialog-centered">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title" id="verificationViewLabel{{ $request->id }}">@lang('Payment Verification Details')</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@lang('Close')"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <div class="row g-3">
+                                                    <div class="col-md-6"><strong>@lang('User')</strong><div>{{ __(@$request->user->fullname) }} <small class="text-muted">(@ {{ __(@$request->user->username) }})</small></div></div>
+                                                    <div class="col-md-6"><strong>@lang('Submitted At')</strong><div>{{ showDateTime($request->created_at) }}</div></div>
+                                                    <div class="col-md-6"><strong>@lang('Payment Method')</strong><div>{{ __($request->method ?: '-') }}</div></div>
+                                                    <div class="col-md-6"><strong>@lang('Gateway')</strong><div>{{ __(@$request->gateway->name ?: '-') }} <small class="text-muted">{{ __(@$request->gateway->symbol) }}</small></div></div>
+                                                    <div class="col-md-6"><strong>@lang('Subscription Plan')</strong><div>{{ $request->subscription_duration_days ? __($request->subscriptionPlan->name ?? 'Subscription Plan') . ' · ' . $request->subscription_duration_days . ' ' . __('days') : __('Standard gateway payment') }}</div></div>
+                                                    @if($request->subscription_duration_days)<div class="col-md-6"><strong>@lang('Plan Payment')</strong><div>{{ rtrim(rtrim(number_format((float) $request->subscription_amount, 8, '.', ''), '0'), '.') }} {{ $request->subscription_currency }}</div></div>@endif
+                                                    <div class="col-md-12"><strong>@lang('Transaction ID / TrxID')</strong><div class="border rounded p-2 bg-light text-dark text-break fw-semibold">{{ $request->trx_id ?: '-' }}</div></div>
+                                                    <div class="col-md-12"><strong>@lang('Notes')</strong><div class="border rounded p-2 bg-light text-dark text-break">{{ $request->notes ?: '-' }}</div></div>
+                                                    <div class="col-md-6"><strong>@lang('Status')</strong><div class="mt-1">
+                                                        @if($request->status === 'pending') <span class="badge badge--warning">@lang('Pending')</span>
+                                                        @elseif($request->status === 'approved') <span class="badge badge--success">@lang('Approved')</span>
+                                                        @else <span class="badge badge--danger">@lang('Rejected')</span> @endif
+                                                    </div></div>
+                                                    <div class="col-md-6"><strong>@lang('Payment Proof')</strong><div class="mt-1">
+                                                        @if($request->payment_proof)
+                                                            <a href="{{ getImage(getFilePath('verify') . '/' . $request->payment_proof) }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline--primary"><i class="las la-image"></i> @lang('Open Proof')</a>
+                                                        @else
+                                                            <span class="text-muted">@lang('No proof uploaded')</span>
+                                                        @endif
+                                                    </div></div>
+                                                    @if($request->payment_proof)
+                                                        <div class="col-12 text-center"><img src="{{ getImage(getFilePath('verify') . '/' . $request->payment_proof) }}" alt="@lang('Payment proof')" class="img-fluid rounded border" style="max-height: 360px; object-fit: contain;"></div>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer"><button type="button" class="btn btn--secondary" data-bs-dismiss="modal">@lang('Close')</button></div>
+                                        </div>
+                                    </div>
+                                </div>
                             @empty
                                 <tr>
                                     <td colspan="100%" class="text-center text-muted">{{ __($emptyMessage) }}</td>

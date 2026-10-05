@@ -108,6 +108,11 @@ Route::middleware('admin')->group(function () {
         Route::post('approve/{id}', 'approveRequest')->name('approve');
         Route::post('reject/{id}', 'rejectRequest')->name('reject');
         Route::post('settings', 'updateSettings')->name('settings');
+        Route::get('subscription-plans', 'plans')->name('plans.index');
+        Route::post('subscription-plans', 'storePlan')->name('plans.store');
+        Route::post('subscription-plans/{id}/update', 'updatePlan')->name('plans.update');
+        Route::post('subscription-plans/{id}/delete', 'deletePlan')->name('plans.delete');
+        Route::post('subscription-plans/{id}/status', 'planStatus')->name('plans.status');
     });
 
     // WITHDRAW SYSTEM

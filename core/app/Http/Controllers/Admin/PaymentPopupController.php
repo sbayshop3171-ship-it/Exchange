@@ -8,6 +8,7 @@ use App\Models\PaymentPopupGateway;
 use App\Models\UserExchangeUnlock;
 use App\Models\User;
 use App\Models\PaymentPopupSetting;
+use App\Models\PaymentSubscriptionPlan;
 use Illuminate\Http\Request;
 
 class PaymentPopupController extends Controller
@@ -16,10 +17,64 @@ class PaymentPopupController extends Controller
     {
         $pageTitle = 'Payment Popup Section';
         $gateways = PaymentPopupGateway::orderBy('id', 'desc')->get();
-        $requests = UserExchangeUnlock::with(['user', 'gateway'])->orderBy('id', 'desc')->get();
+        $requests = UserExchangeUnlock::with(['user', 'gateway', 'subscriptionPlan'])->orderBy('id', 'desc')->get();
         $settings = PaymentPopupSetting::firstOrCreate([], ['fee_currency' => gs('cur_text')]);
 
         return view('admin.payment_popup.index', compact('pageTitle', 'gateways', 'requests', 'settings'));
+    }
+
+    public function plans()
+    {
+        $pageTitle = 'Subscription Plans';
+        $plans = PaymentSubscriptionPlan::orderBy('duration_days')->orderBy('id')->get();
+
+        return view('admin.payment_popup.plans', compact('pageTitle', 'plans'));
+    }
+
+    public function storePlan(Request $request)
+    {
+        $data = $request->validate([
+            'name' => 'required|string|max:100',
+            'duration_days' => 'required|integer|min:1|max:36500',
+            'amount' => 'required|numeric|min:0',
+            'currency' => 'required|string|max:20',
+            'status' => 'nullable|in:on,1',
+        ]);
+        $data['status'] = $request->boolean('status');
+        PaymentSubscriptionPlan::create($data);
+
+        return back()->withNotify([['success', 'Subscription plan created successfully']]);
+    }
+
+    public function updatePlan(Request $request, $id)
+    {
+        $data = $request->validate([
+            'name' => 'required|string|max:100',
+            'duration_days' => 'required|integer|min:1|max:36500',
+            'amount' => 'required|numeric|min:0',
+            'currency' => 'required|string|max:20',
+            'status' => 'nullable|in:on,1',
+        ]);
+        $data['status'] = $request->boolean('status');
+        PaymentSubscriptionPlan::findOrFail($id)->update($data);
+
+        return back()->withNotify([['success', 'Subscription plan updated successfully']]);
+    }
+
+    public function deletePlan($id)
+    {
+        PaymentSubscriptionPlan::findOrFail($id)->delete();
+
+        return back()->withNotify([['success', 'Subscription plan deleted successfully']]);
+    }
+
+    public function planStatus($id)
+    {
+        $plan = PaymentSubscriptionPlan::findOrFail($id);
+        $plan->status = ! $plan->status;
+        $plan->save();
+
+        return back()->withNotify([['success', 'Subscription plan status updated']]);
     }
 
     public function updateSettings(Request $request) {
@@ -125,11 +180,21 @@ class PaymentPopupController extends Controller
     public function approveRequest($id)
     {
         $request = UserExchangeUnlock::with('user')->findOrFail($id);
+        $alreadyApproved = $request->status === 'approved';
         $request->status = 'approved';
         $request->save();
 
         $user = User::findOrFail($request->user_id);
         $user->is_exchange_unlocked = true;
+        if (! $alreadyApproved && $request->subscription_duration_days) {
+            $start = $user->exchange_unlocked_until && $user->exchange_unlocked_until->isFuture()
+                ? $user->exchange_unlocked_until
+                : now();
+            $user->exchange_unlocked_until = $start->copy()->addDays($request->subscription_duration_days);
+        } elseif (! $alreadyApproved) {
+            // A standard gateway approval is the original permanent unlock flow.
+            $user->exchange_unlocked_until = null;
+        }
         $user->save();
 
         $notify[] = ['success', 'Verification approved successfully'];

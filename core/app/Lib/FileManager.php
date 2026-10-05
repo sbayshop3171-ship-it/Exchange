@@ -131,7 +131,9 @@ class FileManager
         //resize the
 	    if ($this->size) {
 	        $size = explode('x', strtolower($this->size));
-	        $image->resize($size[0], $size[1]);
+	        if (count($size) === 2 && (int) $size[0] > 0 && (int) $size[1] > 0) {
+	            $image->resize((int) $size[0], (int) $size[1]);
+	        }
 	    }
         //save the image
 	    $image->save($this->path . '/' . $this->filename);
@@ -141,8 +143,10 @@ class FileManager
             if ($this->old) {
                 $this->removeFile($this->path . '/thumb_' . $this->old);
             }
-	        $thumb = explode('x', $this->thumb);
-	        $manager->read($this->file)->resize($thumb[0], $thumb[1])->save($this->path . '/thumb_' . $this->filename);
+		        $thumb = explode('x', strtolower($this->thumb));
+		        if (count($thumb) === 2 && (int) $thumb[0] > 0 && (int) $thumb[1] > 0) {
+		            $manager->read($this->file)->resize((int) $thumb[0], (int) $thumb[1])->save($this->path . '/thumb_' . $this->filename);
+		        }
 	    }
 	}
 

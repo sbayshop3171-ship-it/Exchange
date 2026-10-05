@@ -16,6 +16,10 @@ class UserExchangeUnlock extends Model
         'payment_proof',
         'status',
         'notes',
+        'subscription_plan_id',
+        'subscription_duration_days',
+        'subscription_amount',
+        'subscription_currency',
     ];
 
     public function user()
@@ -26,6 +30,11 @@ class UserExchangeUnlock extends Model
     public function gateway()
     {
         return $this->belongsTo(PaymentPopupGateway::class, 'gateway_id');
+    }
+
+    public function subscriptionPlan()
+    {
+        return $this->belongsTo(PaymentSubscriptionPlan::class, 'subscription_plan_id');
     }
 
     public function scopePending($query)

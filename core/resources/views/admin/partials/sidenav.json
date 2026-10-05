@@ -493,6 +493,17 @@
         "route_name": "admin.payment.popup.index",
         "menu_active": "admin.payment.popup*"
     },
+    "subscription_plans": {
+        "keyword": [
+            "subscription plans",
+            "payment plans",
+            "exchange subscription"
+        ],
+        "title": "Subscription Plans",
+        "icon": "las la-calendar-check",
+        "route_name": "admin.payment.popup.plans.index",
+        "menu_active": "admin.payment.popup.plans.*"
+    },
     "system_setting": {
         "keyword": [
             "System Setting",

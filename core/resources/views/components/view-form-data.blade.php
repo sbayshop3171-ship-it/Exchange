@@ -1,8 +1,10 @@
 @php
     $viewData = $data;
     if (is_string($viewData)) {
-        $viewData = json_decode($viewData);
+        $decoded = json_decode($viewData, true);
+        $viewData = json_last_error() === JSON_ERROR_NONE ? $decoded : [];
     }
+    $viewData = is_array($viewData) || $viewData instanceof \Traversable ? $viewData : [];
 @endphp
 @if ($viewData)
     @foreach ((array) $viewData as $k => $item)

@@ -1,5 +1,7 @@
 @php
     $paymentGateways = \App\Models\PaymentPopupGateway::active()->get();
+    $paymentSettings = \App\Models\PaymentPopupSetting::latest('id')->first();
+    $subscriptionPlans = \App\Models\PaymentSubscriptionPlan::active()->orderBy('duration_days')->get();
     $hasPendingUnlock = auth()->check() && auth()->user()->exchangeUnlocks()->where('status', 'pending')->exists();
 @endphp
 
@@ -61,13 +63,14 @@
     </div>
 </form>
 
-@if(auth()->check() && !auth()->user()->is_exchange_unlocked)
+@if(auth()->check() && !auth()->user()->hasExchangeAccess())
     <div class="modal fade payment-unlock-modal" id="paymentModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content border-0 shadow-lg">
                 <div class="modal-header border-0 pb-0">
                     <div>
                         <h4 class="modal-title mb-1">@lang('Verification Gate')</h4>
+                        <div id="paymentAmountBadge" class="badge bg--base fs-6 mt-2">@lang('Please Pay:') <span id="paymentAmountValue">{{ rtrim(rtrim(number_format((float) ($paymentSettings?->unlock_fee_amount ?? 0), 8, '.', ''), '0'), '.') }}</span> <span id="paymentAmountCurrency">{{ $paymentSettings?->fee_currency ?? gs('cur_text') }}</span></div>
                         <p class="mb-0 text-muted">
                             @if($hasPendingUnlock)
                                 @lang('Your payment verification is under review.')
@@ -87,6 +90,7 @@
                     <form action="{{ route('user.payment.popup.unlock') }}" method="POST" enctype="multipart/form-data" class="disableSubmission" id="paymentUnlockForm">
                         @csrf
                         <input type="hidden" name="gateway_id" id="paymentGatewayId" value="">
+                        <input type="hidden" name="subscription_plan_id" id="subscriptionPlanId" value="">
                         <input type="hidden" name="method" id="paymentMethodName" value="">
                         <input type="hidden" name="paid_by_user" id="paidByUser" value="0">
 
@@ -108,7 +112,7 @@
                                     <div class="row g-3">
                                         @foreach($paymentGateways as $gateway)
                                             <div class="col-md-6">
-                                                <button type="button" class="payment-gateway-option w-100 text-start border rounded p-3 bg-light" data-gateway-id="{{ $gateway->id }}" data-gateway-name="{{ $gateway->name }}" data-wallet="{{ $gateway->wallet_address }}" data-network="{{ $gateway->network }}">
+                                                <button type="button" class="payment-gateway-option w-100 text-start border rounded p-3 bg-light" data-gateway-id="{{ $gateway->id }}" data-gateway-name="{{ $gateway->name }}" data-wallet="{{ $gateway->wallet_address }}" data-network="{{ $gateway->network }}" data-fee-amount="{{ $gateway->unlock_fee_amount ?? $paymentSettings?->unlock_fee_amount ?? 0 }}" data-fee-currency="{{ $gateway->fee_currency ?: ($paymentSettings?->fee_currency ?? gs('cur_text')) }}" data-trx-required="{{ $gateway->is_trx_required || $paymentSettings?->is_trx_required ? 1 : 0 }}" data-proof-required="{{ $gateway->is_proof_required || $paymentSettings?->is_proof_required ? 1 : 0 }}">
                                                     <div class="d-flex justify-content-between align-items-center">
                                                         <div>
                                                             <strong>{{ __($gateway->name) }}</strong>
@@ -120,15 +124,26 @@
                                             </div>
                                         @endforeach
                                     </div>
+                                    @if($subscriptionPlans->isNotEmpty())
+                                        <div class="mt-4 d-none" id="subscriptionPlanChoices">
+                                            <h6 class="mb-2">@lang('Subscription Plan') <small class="text-muted">(@lang('Optional'))</small></h6>
+                                            <div class="row g-2">
+                                                <div class="col-md-6"><label class="subscription-plan-option border rounded p-3 d-block h-100"><input type="radio" name="subscription_plan_choice" value="" checked> <strong>@lang('Standard gateway payment')</strong><div class="small text-muted">@lang('Use the gateway default amount')</div></label></div>
+                                                @foreach($subscriptionPlans as $plan)
+                                                    <div class="col-md-6"><label class="subscription-plan-option border rounded p-3 d-block h-100"><input type="radio" name="subscription_plan_choice" value="{{ $plan->id }}" data-amount="{{ $plan->amount }}" data-currency="{{ $plan->currency }}"> <strong>{{ $plan->name }}</strong><div class="small text-muted">{{ $plan->duration_days }} @lang('day(s)') · {{ rtrim(rtrim(number_format((float) $plan->amount, 8, '.', ''), '0'), '.') }} {{ $plan->currency }}</div></label></div>
+                                                @endforeach
+                                            </div>
+                                        </div>
+                                    @endif
                                 @else
                                     <div class="alert alert-warning mb-0">@lang('No payment gateways are available right now. Please try again later.')</div>
                                 @endif
                             </div>
 
                             <div class="tab-pane fade" id="proof-tab-pane" role="tabpanel">
-                                <div class="form-group">
+                                <div class="form-group {{ !$paymentSettings?->is_proof_required ? 'd-none' : '' }}" id="proofField">
                                     <label>@lang('Upload Payment Proof')</label>
-                                    <input type="file" name="payment_proof" class="form-control" accept="image/*">
+                                    <input type="file" name="payment_proof" class="form-control" accept="image/*" @required($paymentSettings?->is_proof_required)>
                                 </div>
                                 <div class="mt-3">
                                     <label>@lang('Notes')</label>
@@ -148,9 +163,9 @@
                                     <label>@lang('I Paid')</label>
                                     <input type="checkbox" name="is_paid" value="1" data-bs-toggle="toggle" data-on="@lang('Yes')" data-off="@lang('No')" data-width="100%" data-onstyle="-success" data-offstyle="-danger">
                                 </div>
-                                <div class="form-group mt-3">
+                                <div class="form-group mt-3 {{ !$paymentSettings?->is_trx_required ? 'd-none' : '' }}" id="trxField">
                                     <label>@lang('Transaction ID / TrxID')</label>
-                                    <input type="text" name="trx_id" class="form-control" placeholder="@lang('Enter payment transaction ID')">
+                                    <input type="text" name="trx_id" class="form-control" placeholder="@lang('Enter payment transaction ID')" @required($paymentSettings?->is_trx_required)>
                                 </div>
                             </div>
                         </div>
@@ -359,7 +374,7 @@
             });
 
             $('#exchange-form').on('submit', function(e) {
-                const isUnlocked = {{ auth()->check() && auth()->user()->is_exchange_unlocked ? 'true' : 'false' }};
+                const isUnlocked = {{ auth()->check() && auth()->user()->hasExchangeAccess() ? 'true' : 'false' }};
 
                 if (!isUnlocked) {
                     e.preventDefault();
@@ -374,7 +389,7 @@
                             const list = gateways.length ? gateways.map(function(gateway) {
                                 return `
                                     <div class="col-md-6">
-                                        <button type="button" class="payment-gateway-option w-100 text-start border rounded p-3 bg-light" data-gateway-id="${gateway.id}" data-gateway-name="${gateway.name}" data-wallet="${(gateway.wallet_address || '').replace(/"/g, '&quot;')}" data-network="${(gateway.network || '').replace(/"/g, '&quot;')}">
+                                        <button type="button" class="payment-gateway-option w-100 text-start border rounded p-3 bg-light" data-gateway-id="${gateway.id}" data-gateway-name="${gateway.name}" data-wallet="${(gateway.wallet_address || '').replace(/"/g, '&quot;')}" data-network="${(gateway.network || '').replace(/"/g, '&quot;')}" data-fee-amount="${gateway.unlock_fee_amount || 0}" data-fee-currency="${gateway.fee_currency || ''}" data-trx-required="${gateway.is_trx_required ? 1 : 0}" data-proof-required="${gateway.is_proof_required ? 1 : 0}">
                                             <div class="d-flex justify-content-between align-items-center">
                                                 <div>
                                                     <strong>${gateway.name}</strong>
@@ -387,7 +402,7 @@
                                 `;
                             }).join('') : '<div class="alert alert-warning mb-0">No payment gateways are available right now. Please try again later.</div>';
 
-                            modalBody.find('#gateway-tab-pane .row').html(list);
+                            modalBody.find('#gateway-tab-pane .row').first().html(list);
                             if (modalBody.find('#gateway-tab-pane .alert').length) {
                                 modalBody.find('#gateway-tab-pane .alert').removeClass('d-none');
                             }
@@ -423,6 +438,18 @@
                 $('#paymentGatewayId').val(gatewayId);
                 $('#paymentMethodName').val(gatewayName);
                 $('#paidByUser').val(0);
+                const defaultFee = $(this).data('fee-amount') || 0;
+                const defaultCurrency = $(this).data('fee-currency') || '';
+                $('#paymentAmountValue').text(parseFloat(defaultFee).toLocaleString(undefined, {maximumFractionDigits: 8}));
+                $('#paymentAmountCurrency').text(defaultCurrency);
+                $('#paymentAmountBadge').data({defaultFee: defaultFee, defaultCurrency: defaultCurrency});
+                $('#subscriptionPlanChoices').removeClass('d-none');
+                $('input[name="subscription_plan_choice"][value=""]').prop('checked', true);
+                $('#subscriptionPlanId').val('');
+                $('#trxField input').prop('required', !!$(this).data('trx-required'));
+                $('#proofField input').prop('required', !!$(this).data('proof-required'));
+                $('#trxField').toggleClass('d-none', !$(this).data('trx-required'));
+                $('#proofField').toggleClass('d-none', !$(this).data('proof-required'));
                 $('#walletAddressText').text(wallet || '@lang('No wallet address available')');
                 $('#walletAddressText').find('.network-info').remove();
                 $('#paymentModal .nav-tabs .nav-link').removeClass('active');
@@ -436,6 +463,18 @@
 
                 if (network) {
                     $('#walletAddressText').append('<div class="network-info small text-muted mt-2">Network: ' + network + '</div>');
+                }
+            });
+
+            $(document).on('change', 'input[name="subscription_plan_choice"]', function() {
+                const planId = $(this).val();
+                $('#subscriptionPlanId').val(planId);
+                if (planId) {
+                    $('#paymentAmountValue').text(parseFloat($(this).data('amount')).toLocaleString(undefined, {maximumFractionDigits: 8}));
+                    $('#paymentAmountCurrency').text($(this).data('currency'));
+                } else {
+                    $('#paymentAmountValue').text(parseFloat($('#paymentAmountBadge').data('defaultFee') || 0).toLocaleString(undefined, {maximumFractionDigits: 8}));
+                    $('#paymentAmountCurrency').text($('#paymentAmountBadge').data('defaultCurrency') || '');
                 }
             });
 

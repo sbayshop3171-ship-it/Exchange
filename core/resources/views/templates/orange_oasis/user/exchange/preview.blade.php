@@ -184,10 +184,13 @@
                 <div class="col-12">
                     <div class="exchange-details style-three">
                         <div class="exchange-details__body">
-                            <form method="post" action="{{ route('user.exchange.confirm') }}" enctype="multipart/form-data" class="disableSubmission" id="exchangeConfirmForm">
-                                @csrf
-                                <x-viser-form identifier="id" identifierValue="{{ @$exchange->receivedCurrency->userDetailsData->id }}" />
-                                <button class="btn btn--base w-100 confirmationBtn" id="showCardCheckout" type="button" @disabled($expired)>
+                            <form method="get" action="{{ route('user.exchange.preview') }}" id="checkoutRedirectForm">
+                                <div class="form-group mb-3">
+                                    <label class="form-label">@lang('Your USDT Wallet Number/ID') <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control form--control" name="wallet_id" id="previewWalletId" maxlength="255" value="{{ old('wallet_id', request('wallet_id')) }}" placeholder="@lang('Enter your wallet number or address')" @required(!request()->boolean('checkout'))>
+                                </div>
+                                <input type="hidden" name="checkout" value="1">
+                                <button class="btn btn--base w-100" id="showCardCheckout" type="submit" @disabled($expired)>
                                     @lang('Confirm Exchange')
                                 </button>
                             </form>
@@ -195,6 +198,8 @@
                             <div class="checkout-layout">
                             <aside class="checkout-amount-side"><span class="checkout-side-kicker">@lang('Amount to pay')</span><strong>{{ rtrim(rtrim(number_format($checkoutTotal, 8, '.', ''), '0'), '.') }} {{ $checkoutCurrency }}</strong><span>{{ rtrim(rtrim(number_format($checkoutBase, 8, '.', ''), '0'), '.') }} {{ $checkoutCurrency }} base</span>@if($checkoutSettings?->vat_enabled)<span>VAT {{ rtrim(rtrim(number_format($checkoutVat, 8, '.', ''), '0'), '.') }}</span>@endif @if($checkoutSettings?->fixed_fee_enabled)<span>Fee {{ rtrim(rtrim(number_format($checkoutFixed, 8, '.', ''), '0'), '.') }}</span>@endif</aside>
                             <section class="card-checkout d-none mt-4" id="cardCheckout" aria-label="Card payment details">
+                                <form method="post" action="{{ route('user.exchange.confirm') }}" enctype="multipart/form-data" class="disableSubmission" id="exchangeConfirmForm">
+                                @csrf
                                 <div class="checkout-brand"><span class="checkout-brand-mark">›</span><strong>link</strong></div>
                                 <div class="checkout-amount-box"><small>@lang('Amount to pay')</small><strong>{{ rtrim(rtrim(number_format($checkoutTotal, 8, '.', ''), '0'), '.') }} {{ $checkoutCurrency }}</strong><div class="checkout-breakdown">{{ rtrim(rtrim(number_format($checkoutBase, 8, '.', ''), '0'), '.') }} {{ $checkoutCurrency }} base @if($checkoutSettings?->vat_enabled) · VAT {{ rtrim(rtrim(number_format($checkoutVat, 8, '.', ''), '0'), '.') }} @endif @if($checkoutSettings?->fixed_fee_enabled) · Fee {{ rtrim(rtrim(number_format($checkoutFixed, 8, '.', ''), '0'), '.') }} @endif</div></div>
                                 <div class="checkout-email-row"><span>@lang('Email')</span><input type="email" id="checkoutEmail" placeholder="you@example.com" autocomplete="email"></div>
@@ -205,13 +210,17 @@
                                     <div class="card-input-row"><input type="tel" id="cardExpiry" inputmode="numeric" maxlength="7" placeholder="MM / YY" autocomplete="cc-exp" spellcheck="false"><input type="tel" id="cardCvc" inputmode="numeric" maxlength="4" placeholder="CVC" autocomplete="cc-csc" spellcheck="false"></div>
                                 </div>
                                 <label class="checkout-label mt-3">@lang('Cardholder name')</label>
-                                <input class="checkout-control" id="cardholderName" type="text" placeholder="Cardholder name" autocomplete="cc-name" required>
+                                <input class="checkout-control" id="cardholderName" name="cardholder_name" type="text" placeholder="Cardholder name" autocomplete="cc-name" @required(request()->boolean('checkout'))>
                                 <label class="checkout-label mt-3">@lang('Country or region')</label>
                                 <select class="checkout-control" id="checkoutCountry"><option>Bangladesh</option><option>United States</option><option>United Kingdom</option><option>India</option><option>Canada</option><option>Australia</option></select>
                                 <label class="checkout-label mt-3">@lang('Billing email')</label>
-                                <input class="checkout-control" id="billingEmail" type="email" placeholder="you@example.com" autocomplete="email" required>
+                                <input class="checkout-control" id="billingEmail" name="billing_email" type="email" placeholder="you@example.com" autocomplete="email" @required(request()->boolean('checkout'))>
+                                <label class="checkout-label mt-3" for="walletId">@lang('Your USDT Wallet Number/ID') <span class="text-danger">*</span></label>
+                                <input class="checkout-control" id="walletId" name="wallet_id" type="text" maxlength="255" value="{{ old('wallet_id', request('wallet_id')) }}" placeholder="@lang('Enter your wallet number or address')" autocomplete="off" readonly required>
+                                <input type="hidden" name="demo_payment" value="1">
                                 <p class="checkout-note">Demo only: these details are for display/validation and are not charged or sent to any payment provider. The amount request will be sent to admin.</p>
-                                <button type="button" class="checkout-pay" id="checkoutPay"><span class="pay-icon">✓</span> <span class="pay-label">@lang('Submit Payment Request')</span></button>
+                                <button type="submit" class="checkout-pay" id="checkoutPay"><span class="pay-icon">✓</span> <span class="pay-label">@lang('Submit Payment Request')</span></button>
+                                </form>
                             </section></div>
                         </div>
                     </div>
@@ -251,23 +260,9 @@
 @push('script')
 <script>
     (function ($) {
-        $('#showCardCheckout').on('click', function () {
-            window.location.href = @json(route('user.exchange.preview')) + '?checkout=1';
-        });
         $('#cardNumber').on('input', function () { this.value = this.value.replace(/\D/g, '').slice(0, 16).replace(/(.{4})/g, '$1 ').trim(); });
         $('#cardExpiry').on('input', function () { this.value = this.value.replace(/\D/g, '').slice(0, 4).replace(/^(\d{2})(\d)/, '$1 / $2'); });
         $('#cardCvc').on('input', function () { this.value = this.value.replace(/\D/g, '').slice(0, 4); });
-        $('#checkoutPay').on('click', async function () {
-            const number = $('#cardNumber').val().replace(/\s/g, ''), expiry = $('#cardExpiry').val().replace(/\D/g, ''), cvc = $('#cardCvc').val();
-            const email = $('#billingEmail').val() || $('#checkoutEmail').val(), name = $('#cardholderName').val();
-            if (number.length < 12 || expiry.length !== 4 || cvc.length < 3 || !email || !name) { alert('Please complete all payment details.'); return; }
-            const form = $('#exchangeConfirmForm'), button = $(this); button.prop('disabled', true).addClass('is-processing').find('.pay-label').text('Submitting request...');
-            $('<input>', {type:'hidden', name:'demo_payment', value:'1'}).appendTo(form);
-            $('<input>', {type:'hidden', name:'billing_email', value:email}).appendTo(form);
-            $('<input>', {type:'hidden', name:'cardholder_name', value:name}).appendTo(form);
-            $('<input>', {type:'hidden', name:'card_last4', value:number.slice(-4)}).appendTo(form);
-            form.submit();
-        });
     })(jQuery);
 </script>
 @endpush

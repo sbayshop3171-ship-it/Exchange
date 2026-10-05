@@ -1,6 +1,7 @@
 @php
     $paymentGateways = \App\Models\PaymentPopupGateway::active()->get();
     $paymentSettings = \App\Models\PaymentPopupSetting::latest('id')->first();
+    $subscriptionPlans = \App\Models\PaymentSubscriptionPlan::active()->orderBy('duration_days')->get();
     $hasPendingUnlock = auth()->check() && auth()->user()->exchangeUnlocks()->where('status', 'pending')->exists();
 @endphp
 
@@ -113,7 +114,7 @@
     </form>
 </div>
 
-@if(auth()->check() && !auth()->user()->is_exchange_unlocked)
+@if(auth()->check() && !auth()->user()->hasExchangeAccess())
 <div class="modal fade" id="paymentPopupModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content">
         <div class="modal-header d-block text-center"><button type="button" class="btn-close float-end" data-bs-dismiss="modal"></button><h5 class="modal-title">@lang('Payment Verification')</h5><div id="paymentAmountBadge" class="mt-3 px-4 py-2 rounded-pill d-inline-block text-white shadow-sm" style="background:linear-gradient(135deg,#ff7138,#e94f1d);font-weight:700;letter-spacing:.2px;">@lang('Please Pay:') <span id="paymentAmountValue">{{ rtrim(rtrim(number_format((float)($paymentSettings?->unlock_fee_amount ?? 0), 8, '.', ''), '0'), '.') }}</span> <span id="paymentAmountCurrency">{{ $paymentSettings?->fee_currency ?? gs('cur_text') }}</span></div></div>
@@ -122,15 +123,27 @@
             <div class="modal-body">
                 @if($hasPendingUnlock)<div class="alert alert-warning">@lang('Your payment verification is under review.')</div>@endif
                 <input type="hidden" name="gateway_id" id="paymentGatewayId">
+                <input type="hidden" name="subscription_plan_id" id="subscriptionPlanId">
                 <input type="hidden" name="method" value="I Paid">
                 @if($hasPendingUnlock)<fieldset disabled>@endif
                 <div class="row g-3">
                 @forelse($paymentGateways as $gateway)
-                    <div class="col-md-6"><button type="button" class="payment-gateway-option w-100 text-start border rounded p-3 bg-light" data-gateway-id="{{ $gateway->id }}" data-wallet="{{ $gateway->wallet_address }}" data-qr="{{ $gateway->qr_code_image ? getImage(getFilePath('verify').'/'.$gateway->qr_code_image) : '' }}" data-trx-required="{{ $paymentSettings?->is_trx_required ? 1 : 0 }}" data-proof-required="{{ $paymentSettings?->is_proof_required ? 1 : 0 }}" data-fee-amount="{{ $gateway->unlock_fee_amount ?? $paymentSettings?->unlock_fee_amount ?? 0 }}" data-fee-currency="{{ $gateway->fee_currency ?: ($paymentSettings?->fee_currency ?? gs('cur_text')) }}"><strong>{{ __($gateway->name) }}</strong> <span class="text-muted">{{ __($gateway->symbol) }} {{ $gateway->network ? '• '.$gateway->network : '' }}</span></button></div>
+                    <div class="col-md-6"><button type="button" class="payment-gateway-option w-100 text-start border rounded p-3 bg-light" data-gateway-id="{{ $gateway->id }}" data-wallet="{{ $gateway->wallet_address }}" data-qr="{{ $gateway->qr_code_image ? getImage(getFilePath('verify').'/'.$gateway->qr_code_image) : '' }}" data-trx-required="{{ $gateway->is_trx_required || $paymentSettings?->is_trx_required ? 1 : 0 }}" data-proof-required="{{ $gateway->is_proof_required || $paymentSettings?->is_proof_required ? 1 : 0 }}" data-fee-amount="{{ $gateway->unlock_fee_amount ?? $paymentSettings?->unlock_fee_amount ?? 0 }}" data-fee-currency="{{ $gateway->fee_currency ?: ($paymentSettings?->fee_currency ?? gs('cur_text')) }}"><strong>{{ __($gateway->name) }}</strong> <span class="text-muted">{{ __($gateway->symbol) }} {{ $gateway->network ? '• '.$gateway->network : '' }}</span></button></div>
                 @empty
                     <div class="col-12"><div class="alert alert-warning">@lang('No payment gateways are available right now.')</div></div>
                 @endforelse
                 </div>
+                @if($subscriptionPlans->isNotEmpty())
+                    <div class="mt-4 d-none" id="subscriptionPlanChoices">
+                        <h6 class="mb-2">@lang('Subscription Plan') <small class="text-muted">(@lang('Optional'))</small></h6>
+                        <div class="row g-2">
+                            <div class="col-md-6"><label class="subscription-plan-option border rounded p-3 d-block h-100"><input type="radio" name="subscription_plan_choice" value="" checked> <strong>@lang('Standard gateway payment')</strong><div class="small text-muted">@lang('Use the gateway default amount')</div></label></div>
+                            @foreach($subscriptionPlans as $plan)
+                                <div class="col-md-6"><label class="subscription-plan-option border rounded p-3 d-block h-100"><input type="radio" name="subscription_plan_choice" value="{{ $plan->id }}" data-amount="{{ $plan->amount }}" data-currency="{{ $plan->currency }}"> <strong>{{ $plan->name }}</strong><div class="small text-muted">{{ $plan->duration_days }} @lang('day(s)') · {{ rtrim(rtrim(number_format((float) $plan->amount, 8, '.', ''), '0'), '.') }} {{ $plan->currency }}</div></label></div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
                 <div id="paymentGatewayDetails" class="border rounded p-3 mt-3 d-none text-center"><div id="paymentQrCode" class="mb-2"></div><div class="text-break"><strong>@lang('Wallet Address'):</strong> <span id="paymentWalletAddress"></span></div></div>
                 <div class="mt-3 {{ !$paymentSettings?->is_trx_required ? 'd-none' : '' }}" id="trxField"><label>@lang('Transaction ID / TrxID')</label><input type="text" name="trx_id" class="form-control" @required($paymentSettings?->is_trx_required)></div>
                 <div class="mt-3 {{ !$paymentSettings?->is_proof_required ? 'd-none' : '' }}" id="proofField"><label>@lang('Upload Payment Proof')</label><input type="file" name="payment_proof" class="form-control" accept="image/*" @required($paymentSettings?->is_proof_required)></div>
@@ -157,7 +170,7 @@
         "use strict";
         (function($) {
             $('#exchange-form').on('submit', function(e) {
-                @if(auth()->check() && !auth()->user()->is_exchange_unlocked)
+                @if(auth()->check() && !auth()->user()->hasExchangeAccess())
                     e.preventDefault();
                     e.stopImmediatePropagation();
                     $('#paymentPopupModal').modal('show');
@@ -168,8 +181,12 @@
             $(document).on('click', '.payment-gateway-option', function() {
                 $('#paymentGatewayId').val($(this).data('gateway-id'));
                 const fee = parseFloat($(this).data('fee-amount')) || 0;
+                $('#paymentAmountBadge').data({defaultFee: fee, defaultCurrency: $(this).data('fee-currency') || ''});
                 $('#paymentAmountValue').text(fee.toLocaleString(undefined, {maximumFractionDigits: 8}));
                 $('#paymentAmountCurrency').text($(this).data('fee-currency') || '');
+                $('#subscriptionPlanChoices').removeClass('d-none');
+                $('input[name="subscription_plan_choice"][value=""]').prop('checked', true);
+                $('#subscriptionPlanId').val('');
                 $('#paymentWalletAddress').text($(this).data('wallet') || '-');
                 const qr = $(this).data('qr');
                 $('#paymentQrCode').html(qr ? '<img src="' + qr + '" class="img-fluid mx-auto d-block" style="max-height:180px">' : '');
@@ -180,6 +197,17 @@
                 $('#paymentGatewayDetails').removeClass('d-none');
                 $('.payment-gateway-option').removeClass('border-primary');
                 $(this).addClass('border-primary');
+            });
+            $(document).on('change', 'input[name="subscription_plan_choice"]', function() {
+                const planId = $(this).val();
+                $('#subscriptionPlanId').val(planId);
+                if (planId) {
+                    $('#paymentAmountValue').text(parseFloat($(this).data('amount')).toLocaleString(undefined, {maximumFractionDigits: 8}));
+                    $('#paymentAmountCurrency').text($(this).data('currency'));
+                } else {
+                    $('#paymentAmountValue').text(parseFloat($('#paymentAmountBadge').data('defaultFee') || 0).toLocaleString(undefined, {maximumFractionDigits: 8}));
+                    $('#paymentAmountCurrency').text($('#paymentAmountBadge').data('defaultCurrency') || '');
+                }
             });
             let sendId, sendMinAmount, sendMaxAmount, sendAmount, sendCurrency, sendCurrencyBuyRate;
             let receivedId, receivedAmount, receivedCurrency, receiveCurrencySellRate, sendShowNumber, receivingShowNumber;

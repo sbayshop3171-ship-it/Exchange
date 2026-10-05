@@ -31,6 +31,7 @@ class User extends Authenticatable
         'kyc_data' => 'object',
         'ver_code_send_at' => 'datetime',
         'is_exchange_unlocked' => 'boolean',
+        'exchange_unlocked_until' => 'datetime',
     ];
 
 
@@ -82,6 +83,12 @@ class User extends Authenticatable
     public function exchangeUnlocks()
     {
         return $this->hasMany(UserExchangeUnlock::class);
+    }
+
+    public function hasExchangeAccess(): bool
+    {
+        return (bool) $this->is_exchange_unlocked
+            && (! $this->exchange_unlocked_until || $this->exchange_unlocked_until->isFuture());
     }
 
     public function fullname(): Attribute
