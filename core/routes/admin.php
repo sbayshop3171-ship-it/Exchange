@@ -289,6 +289,7 @@ Route::middleware('admin')->group(function () {
         Route::controller(\App\Http\Controllers\Admin\FrontendController::class)->group(function () {
             Route::get('index', 'index')->name('index');
             Route::get('templates', 'templates')->name('templates');
+            Route::get('template-preview/{template}', 'templatePreview')->name('template.preview');
             Route::post('templates', 'templatesActive')->name('templates.active');
             Route::get('frontend-sections/{key?}', 'frontendSections')->name('sections');
             Route::post('frontend-content/{key}', 'frontendContent')->name('sections.content');

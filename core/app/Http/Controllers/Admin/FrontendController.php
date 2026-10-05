@@ -24,10 +24,20 @@ class FrontendController extends Controller
         foreach ($temPaths as $key => $temp) {
             $tempname = basename($temp);
             $templates[$key]['name'] = $tempname;
-            $templates[$key]['image'] = asset('assets/templates/' . $tempname . '/preview.jpg');
+            $templates[$key]['image'] = route('admin.frontend.template.preview', ['template' => $tempname]);
         }
         $extraTemplates = json_decode(getTemplates(), true);
         return view('admin.frontend.templates', compact('pageTitle', 'templates', 'extraTemplates'));
+    }
+
+    public function templatePreview(string $template)
+    {
+        abort_unless(preg_match('/^[a-z0-9_]+$/', $template), 404);
+
+        $preview = resource_path("views/templates/{$template}/preview.jpg");
+        abort_unless(is_file($preview), 404);
+
+        return response()->file($preview, ['Cache-Control' => 'public, max-age=3600']);
     }
 
     public function templatesActive(Request $request)
