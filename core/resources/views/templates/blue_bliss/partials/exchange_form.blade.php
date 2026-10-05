@@ -497,6 +497,23 @@
 
 @push('style')
     <style>
+        /* Keep the verification dialog above theme overlays/backdrops. */
+        body:has(#paymentModal.show) .payment-unlock-modal {
+            z-index: 1065 !important;
+        }
+
+        body:has(#paymentModal.show) .modal-backdrop {
+            z-index: 1060 !important;
+        }
+
+        #paymentModal .modal-dialog,
+        #paymentModal .modal-content,
+        #paymentModal button,
+        #paymentModal input,
+        #paymentModal textarea {
+            pointer-events: auto;
+        }
+
         .select2-container .select2-selection--single {
             height: 46px;
             width: 100%;
